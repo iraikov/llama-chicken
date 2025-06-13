@@ -1,0 +1,29 @@
+;;;; -*- Hen -*-
+
+(
+ ; Your egg's license:
+ (license "MIT")
+
+ ; Egg category
+ (category data)
+
+ ; A list of eggs llama depends on.
+ (dependencies srfi-1 srfi-4 srfi-42 srfi-69
+               vector-lib blas random-mtzig
+               endian-blob
+               )
+
+ (author "Ivan Raikov")
+
+ (synopsis "Inference with Llama2 model.")
+
+ (components (extension llama (source "llama.scm") (csc-options "-O3" "-d1"))
+             (program llama-cli
+                      (source "llama-cli.scm")
+                      (csc-options -local -O3 -d0 -block)
+                      (component-dependencies
+                       llama)))
+
+ (test-dependencies test)
+
+)
