@@ -49,21 +49,32 @@ chicken-install llama
 
 ## Quick Start
 
+### Model Checkpoint
+
+Download this 15M parameter model trained on the [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) dataset (~60MB download):
+
+```bash
+wget https://huggingface.co/karpathy/tinyllamas/resolve/main/stories15M.bin
+```
+
 ### Basic Text Generation
+
+Ensure that file tokenizer.bin is the current directory. Then run:
+
 ```bash
 # Generate text with default settings
-llama-cli -c model.bin -p "Once upon a time"
+llama-cli -c stories15M.bin -p "Once upon a time"
 
 # Creative generation with temperature
-llama-cli -c model.bin -t 0.8 -s 100 -p "The meaning of life is"
+llama-cli -c stories15M.bin -t 0.8 -s 100 -p "The meaning of life is"
 
 # Deterministic generation
-llama-cli -c model.bin -t 0.0 -s 50 -p "To be or not to be"
+llama-cli -c stories15M.bin -t 0.0 -s 50 -p "To be or not to be"
 ```
 
 ### Verify Model Checkpoint
 ```bash
-llama-cli -c model.bin --verify-checkpoint
+llama-cli -c stories15M.bin --verify-checkpoint
 ```
 
 ## API Documentation
