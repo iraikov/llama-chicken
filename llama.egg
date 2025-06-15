@@ -10,7 +10,7 @@
  ; A list of eggs llama depends on.
  (dependencies srfi-1 srfi-4 srfi-42 srfi-69
                vector-lib blas random-mtzig
-               endian-blob
+               endian-blob endian-port
                )
 
  (author "Ivan Raikov")
