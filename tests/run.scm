@@ -7,9 +7,17 @@
         (chicken time)
         (srfi 1)
         (srfi 4)
+        (chicken number-vector)
         (test)
         blas
-        llama)
+        llama
+        (only llama-common checkpoint-init-weights read-config config-shared-weights
+              config-vocab-size config-hidden-dim config-n-heads config-seq-len)
+        (only llama-am register-crunch-backend! transformer-weights->am-weights
+              make-am-state am-transformer)
+        (only endian-port open-endian-port close-endian-port set-littlendian!)
+        (only (chicken file) file-exists?)
+        (only (chicken file posix) file-size))
 
 ;; Helper function to compare f32vectors with tolerance
 (define (f32vector-approx-equal? v1 v2 tolerance)
@@ -1165,6 +1173,76 @@
   (test "argmax equal values returns first"
         0
         (argmax (f32vector 1.0 1.0 1.0))))
+
+;; The array-morphisms forward pass must reproduce the BLAS forward pass.
+(define (max-abs-diff v1 v2)
+  (let loop ((i 0) (m 0.0))
+    (if (= i (f32vector-length v1))
+        m
+        (loop (+ i 1) (max m (abs (- (f32vector-ref v1 i) (f32vector-ref v2 i))))))))
+
+;; Runs both implementations on the same token sequence; returns the
+;; largest logit difference over all positions.
+(define (compare-backends config weights tokens)
+  (let* ((dim (config-dim config))
+         (n-layers (config-n-layers config))
+         (n-heads (config-n-heads config))
+         (seq-len (config-seq-len config))
+         (hidden-dim (config-hidden-dim config))
+         (am-weights (transformer-weights->am-weights config weights))
+         (am-state (make-am-state config am-weights))
+         (state (make-run-state
+                 (make-f32vector dim 0.0) (make-f32vector dim 0.0)
+                 (make-f32vector dim 0.0) (make-f32vector dim 0.0)
+                 (make-f32vector dim 0.0)
+                 (make-f32vector (* n-heads seq-len) 0.0)
+                 (make-f32vector (* n-layers seq-len dim) 0.0)
+                 (make-f32vector (* n-layers seq-len dim) 0.0)
+                 (make-f32vector dim 0.0)
+                 (make-f32vector hidden-dim 0.0)
+                 (make-f32vector hidden-dim 0.0)
+                 (make-f32vector (config-vocab-size config) 0.0))))
+    (let loop ((pos 0) (tokens tokens) (worst 0.0))
+      (if (null? tokens)
+          worst
+          (begin
+            (transformer (car tokens) pos config state weights)
+            (let ((d (max-abs-diff (run-state-logits state)
+                                   (am-transformer (car tokens) pos config am-state am-weights))))
+              (loop (+ pos 1) (cdr tokens) (max worst d))))))))
+
+(test-group "array-morphisms backend tests"
+  (register-crunch-backend!)
+
+  (let ((config (make-config 4 8 2 2 2 10 8 #t))
+        (weights
+         (make-transformer-weights
+          (list->f32vector (iota 40 0.1 0.1))
+          (make-f32vector 8 1.0)
+          (list->f32vector (iota 32 0.01 0.01))
+          (list->f32vector (iota 32 0.02 -0.01))
+          (list->f32vector (iota 32 -0.1 0.01))
+          (make-f32vector 32 0.1)
+          (make-f32vector 8 1.0)
+          (list->f32vector (iota 64 -0.2 0.01))
+          (make-f32vector 64 0.1)
+          (list->f32vector (iota 64 0.3 -0.01))
+          (make-f32vector 4 1.0)
+          (list->f32vector (iota 8 1.0 -0.1))
+          (list->f32vector (iota 8 0.0 0.1))
+          (list->f32vector (iota 40 0.1 0.1)))))
+    (test-assert "small model: logits agree with BLAS backend"
+                 (< (compare-backends config weights '(1 3 5 7 2)) 1e-4)))
+
+  (let ((checkpoint "../stories15M.bin"))
+    (when (file-exists? checkpoint)
+      (let* ((port (open-endian-port 'read checkpoint))
+             (config (begin (set-littlendian! port) (read-config port checkpoint)))
+             (weights (checkpoint-init-weights config port (config-shared-weights config)
+                                               (file-size checkpoint))))
+        (close-endian-port port)
+        (test-assert "stories15M: logits agree with BLAS backend"
+                     (< (compare-backends config weights '(1 9038 2501 263 931)) 1e-3))))))
 
 ;; Run all tests
 (test-exit)

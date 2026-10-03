@@ -8,7 +8,12 @@
         (chicken string)
         (chicken file)
         getopt-long
-        llama)
+        llama-common
+        (only llama make-blas-inference-backend)
+        (only llama-am make-am-inference-backend))
+
+;; Inference backends selectable with --backend
+(define backend-names '("blas" "crunch"))
 
 ;; Define command-line option grammar
 (define option-grammar
@@ -20,8 +25,7 @@
     (checkpoint
      "Path to the Llama2 model checkpoint file (required)"
      (single-char #\c)
-     (value #t)
-     (required #t))
+     (value #t))
     
     (tokenizer
      "Path to the tokenizer file (default tokenizer.bin)"
@@ -61,9 +65,25 @@
      (value (optional PROMPT)
             (default "")))
     
+    (backend
+     "Numerical backend: blas or crunch (array-morphisms)"
+     (single-char #\b)
+     (value
+      (required NAME)
+      (predicate ,(lambda (s) (member s backend-names)))))
+
+    (threads
+     "Number of threads for the crunch backend"
+     (single-char #\j)
+     (value (required NUM)
+            (predicate ,(lambda (s)
+                          (let ((n (string->number s)))
+                            (and n (integer? n) (exact? n) (> n 0)))))
+            (transformer ,string->number)))
+
     (seed
      "Random seed"
-     (single-char #\s)
+     (single-char #\r)
      (value
             (required SEED)
             (predicate ,(lambda (s) 
@@ -87,12 +107,20 @@
   (printf "                        Higher values = more random/creative output\n")
   (printf "  -s, --steps NUM       Number of tokens to generate (default: 256)\n")
   (printf "  -p, --prompt TEXT     Input prompt text (default: empty)\n")
-  (printf "  --verify-checkpoint   Verify checkpoint file\n")
+  (printf "  -r, --seed NUM        Random seed (default: current time)\n")
+  (printf "  -b, --backend NAME    Numerical backend (default: blas)\n")
+  (printf "                        blas   = CHICKEN blas egg\n")
+  (printf "                        crunch = array-morphisms with the crunch backend\n")
+  (printf "  -j, --threads NUM     Number of threads for the crunch backend\n")
+  (printf "  --verify-checkpoint   Print a summary of the checkpoint weights and exit\n")
+  (printf "\n")
+  (printf "Long options take their value after '=', e.g. --steps=100.\n")
   (printf "\n")
   (printf "Examples:\n")
   (printf "  ~A -c model.bin -p \"Once upon a time\"\n" program-name)
-  (printf "  ~A --checkpoint model.bin --temperature 0.8 --steps 100\n" program-name)
-  (printf "  ~A -c model.bin -t 0.5 -s 50 -p \"The meaning of life is\"\n" program-name))
+  (printf "  ~A --checkpoint=model.bin --temperature=0.8 --steps=100\n" program-name)
+  (printf "  ~A -c model.bin -t 0.5 -s 50 -p \"The meaning of life is\"\n" program-name)
+  (printf "  ~A -c model.bin --backend=crunch --threads=4 -p \"Once upon a time\"\n" program-name))
 
 ;; Parse command line options and validate
 (define (parse-options args)
@@ -144,6 +172,8 @@
                (prompt (get-option parsed-options 'prompt ""))
                (seed (get-option parsed-options 'seed #f))
                (verify-checkpoint (get-option parsed-options 'verify-checkpoint #f))
+               (backend-name (get-option parsed-options 'backend "blas"))
+               (threads (get-option parsed-options 'threads #f))
                )
          
           ;; Validate required options
@@ -155,9 +185,10 @@
           ;; Validate file existence
           (validate-files checkpoint tokenizer)
 
-          (if verify-checkpoint
-              (verify-checkpoint-data checkpoint))
-              
+          (when verify-checkpoint
+            (verify-checkpoint-data checkpoint)
+            (exit 0))
+
           ;; Validate numeric conversions
           (unless temperature
             (printf "Error: Invalid temperature value: ~A\n" temperature)
@@ -173,12 +204,16 @@
           (printf "Checkpoint: ~A\n" checkpoint)
           (printf "Temperature: ~A\n" temperature)
           (printf "Steps: ~A\n" steps)
+          (printf "Backend: ~A\n" backend-name)
           (printf "Prompt: \"~A\"\n" prompt)
           (printf "\nGenerating text...\n\n")
           
           ;; Create args and run the model
-          (let ((llama-args (make-args checkpoint tokenizer temperature steps prompt seed)))
-            (run llama-args))
+          (let ((llama-args (make-args checkpoint tokenizer temperature steps prompt seed))
+                (backend (if (string=? backend-name "crunch")
+                             (make-am-inference-backend threads: threads)
+                             (make-blas-inference-backend))))
+            (run-with-backend llama-args backend))
           ))
       ))
 

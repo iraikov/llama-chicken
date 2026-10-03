@@ -8,21 +8,32 @@
  (category data)
 
  ; A list of eggs llama depends on.
- (dependencies srfi-1 srfi-4 srfi-42 srfi-69
+ (dependencies srfi-1 srfi-69
                vector-lib blas random-mtzig
-               endian-blob endian-port getopt-long
+               endian-sequence endian-port getopt-long yasos
+               datatype array-morphisms array-morphisms-crunch
                )
 
  (author "Ivan Raikov")
 
  (synopsis "Inference with Llama2 model.")
 
- (components (extension llama (source "llama.scm") (csc-options "-O3" "-d1"))
+ (components (extension llama-common
+                        (source "llama-common.scm")
+                        (csc-options "-O3" "-d1"))
+             (extension llama
+                        (source "llama.scm")
+                        (csc-options "-O3" "-d1")
+                        (component-dependencies llama-common))
+             (extension llama-am
+                        (source "llama-am.scm")
+                        (csc-options "-O3" "-d1")
+                        (component-dependencies llama-common))
              (program llama-cli
                       (source "llama-cli.scm")
                       (csc-options -local -O3 -d0 -block)
                       (component-dependencies
-                       llama)))
+                       llama-common llama llama-am)))
 
  (test-dependencies test)
 

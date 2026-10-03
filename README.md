@@ -7,7 +7,7 @@ based on Andrej Karpathy's
 [llama2.ml](https://github.com/jackpeck/llama2.ml).
 
 ### System Dependencies
-- **CHICKEN Scheme 5.0+**: [The Scheme implementation](https://call-cc.org/)
+- **CHICKEN Scheme 6.0+**: [The Scheme implementation](https://call-cc.org/)
 - **BLAS Library**: For optimized linear algebra (OpenBLAS, Intel MKL, or system BLAS)
 - **C Compiler**: GCC or Clang for compiling extensions
 
@@ -71,6 +71,22 @@ llama-cli -c stories15M.bin -t 0.8 -s 100 -p "The meaning of life is"
 # Deterministic generation
 llama-cli -c stories15M.bin -t 0.0 -s 50 -p "To be or not to be"
 ```
+
+### Selecting the Numerical Backend
+
+Two implementations of the forward pass are available:
+
+- `blas` (default): the CHICKEN `blas` egg, i.e. the system BLAS library.
+- `crunch`: the `array-morphisms` library with the crunch backend from
+  `array-morphisms-crunch`. Large matrix products are divided among
+  threads; `--threads` sets their number (default: the `AM_CRUNCH_THREADS`
+  environment variable, or the number of processors, at most 8).
+
+```bash
+llama-cli -c stories15M.bin -p "Once upon a time" --backend=crunch --threads=4
+```
+
+Long options take their value after `=`, e.g. `--steps=100`.
 
 ### Verify Model Checkpoint
 ```bash

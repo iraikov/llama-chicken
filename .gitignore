@@ -5,3 +5,12 @@
 *.scm~
 *.scm#*
 .#*.scm
+
+# CHICKEN build artifacts
+*.so
+*.o
+*.import.scm
+*.link
+*.build.sh
+*.install.sh
+llama-cli
