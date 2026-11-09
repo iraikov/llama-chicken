@@ -58,6 +58,7 @@
          array-morphisms-crunch-conv-backend
          array-morphisms-crunch-activations
          array-morphisms-crunch-threads
+         (only array-morphisms-crunch-codegen register-crunch-codegen-backend!)
          llama-common
          )
 
@@ -363,10 +364,14 @@
 
 ;; Makes crunch the active array-morphisms BLAS backend and element-wise
 ;; (activation) backend.  When threads is given it also sets the number of
-;; threads used by the crunch kernels.
-(define (register-crunch-backend! #!key (threads #f))
+;; threads used by the crunch kernels.  When codegen is true (the default)
+;; it also registers the segop code generator of array-morphisms-crunch,
+;; which compiles kernels for the segops that no catalogue or BLAS kernel
+;; runs; the environment variable AM_CRUNCH_CODEGEN=0 turns it off.
+(define (register-crunch-backend! #!key (threads #f) (codegen #t))
   (register-blas-backend! (make-crunch-blas-backend))
   (register-activation-backend! (make-crunch-activation-backend))
+  (when codegen (register-crunch-codegen-backend!))
   (when threads (crunch-thread-count threads)))
 
 ;; Inference backend running on array-morphisms with the crunch BLAS

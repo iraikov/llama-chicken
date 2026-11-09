@@ -81,6 +81,14 @@ Two implementations of the forward pass are available:
   `array-morphisms-crunch`. Large matrix products are divided among
   threads; `--threads` sets their number (default: the `AM_CRUNCH_THREADS`
   environment variable, or the number of processors, at most 8).
+  
+  The element-wise steps that do not have a pre-compiled crunch kernel
+  for are compiled into kernels by the code generator of
+  `array-morphisms-crunch` when the model is loaded. The first run
+  compiles them, which needs `csc`, and keeps them in
+  `~/.cache/array-morphisms/kernels` for later runs. Set
+  `AM_CRUNCH_CODEGEN=0` to run those steps without generated kernels.
+
 
 ```bash
 llama-cli -c stories15M.bin -p "Once upon a time" --backend=crunch --threads=4
